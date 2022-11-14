@@ -1,0 +1,31 @@
+1.	Begin
+2.	Declare the necessary libraries for RFID, GPS and communication protocols
+3.	Set baud rate
+4.	Initialise the RFID reader and GPS module
+5.	Define the input pins and the pins for serial communication
+6.	Set fixed coordinates and radius for geofencing
+7.	Define the network credentials for the ESP8266 module
+8.	Check availability of sensors
+9.	if sensors are available
+10.	Acquire data from the sensors
+11.	else
+12.	   Go to step 3
+13.	end
+14.	The input values of the sensors are serially transferred to NodeMCU
+15.	Data receivers of the NodeMCU and Arduino receive the data
+16.	The fingerprint sensor data is compared with the scanned wristband ID
+17.	if the fingerprint matches with RFID UID
+18.	   Publish the RFID and GPS data over the internet
+19.	   Store the data in the cloud server
+20.	else
+21.	   Go to step 6
+22.	end
+23.	The GPS data is analysed for geofencing
+24.	Compare the incoming live coordinates with the fixed coordinates
+25.	if the difference between the live and fixed coordinates is < fixed radius
+26.	   Geofence is breached
+27.	   Issue alert
+28.	else
+29.	   Go to step 6
+30.	end
+31.	Stop

@@ -1,0 +1,17 @@
+1.	Begin
+2.	Set the latitude LAT and longitude LONG as per the requirement
+3.	Set a radius RAD to define the area you want to geofence
+4.	Live coordinates live_LAT and live_LONG from the user’s GPS are recorded
+5.	The difference in the live coordinates and predefined coordinates is calculated and compared with the radius
+6.	difflat = LAT - live_Lat
+7.	difflong = LONG - live_LONG
+8.	if ((difflat ≤ RAD && difflat ≥ RAD*(-1)) && (difflong ≤ RAD && difflong ≥ RAD*(-1)))
+9.	    Issue alert
+10.	else
+11.	    Go to step 4
+12.	if ((difflat ≥ RAD && difflat ≤ RAD*(-1)) && (difflong ≥ RAD && difflong ≤ RAD*(-1)))
+13.	    Issue alert
+14.	else
+15.	   Go to step 4
+16.	Stop
+

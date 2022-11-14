@@ -1,0 +1,216 @@
+#include <Arduino.h>
+#include <SoftwareSerial.h>
+#include <TinyGPS++.h>
+#include <ESP8266WiFi.h>
+#include <SPI.h>
+#include "HTTPSRedirect.h"
+//GPS Module RX pin to NodeMCU D1
+//GPS Module TX pin to NodeMCU D2
+const int RX_Pin = 4, TX_Pin = 5;
+SoftwareSerial neo6m(RX_Pin, TX_Pin);
+TinyGPSPlus gps;
+#define user_defined_Lat    22.251572    // Update this value according to your requirement
+#define user_defined_Lang   84.875603    // Update this value according to your requirement
+#define user_defined_radius 0.003       // Area covered around the user defined location, increase value to cover more area
+             
+// Enter network credentials:
+const char* ssid     = "My_network";
+const char* password = "*********";
+String GMAP_API_KEY = "AIzaSyBGnU_tPq679W6XmuwTq_TggeBJl_OuY8E";
+WiFiServer server(80);
+String html;
+// Enter Google Script Deployment ID:
+const char *GScriptId = "AKfycbymOFCfOVq0HNFkjrDkI5TWLu_2ePUgiqCaW-HogtJ8sfpIg_irSC7AcJIvB_i2G2x-Zg";
+// Enter command (insert_row or append_row) and your Google Sheets sheet name (default is Sheet1):
+String payload_base =  "{\"command\": \"insert_row\", \"sheet_name\": \"Sheet1\", \"values\": ";
+String payload = "";
+// Setting up Google spreadsheet
+const char* host = "script.google.com";
+const int httpsPort = 443;
+const char* fingerprint = "";
+String url = String("/macros/s/") + GScriptId + "/exec";
+HTTPSRedirect* client = nullptr;
+// Declare variables that will be published to Google Sheets
+String Latitude = " ";
+String Longitude = " ";
+String Access = " ";
+void setup()
+{
+  Serial.begin(115200);
+  Serial.println();
+  neo6m.begin(9600);
+
+    Serial.print("Connecting to ");
+    Serial.println(ssid);
+
+    WiFi.begin(ssid, password);
+    while (WiFi.status() != WL_CONNECTED) {
+        delay(500);
+        Serial.print(".");
+    }
+    Serial.println("");
+    Serial.println("WiFi connected");
+    Serial.println("IP address: ");    // this is the address to use for viewing the map
+    Serial.println(WiFi.localIP());
+    server.begin();
+}
+void publish() {
+  gps_module(3000);
+  if (gps.location.isValid()) 
+  {
+    //Storing the Latitude. and Longitude
+    double lat, lng, latOffset, lngOffset;
+    Latitude = String(gps.location.lat(), 6);
+    Longitude = String(gps.location.lng(), 6);
+    // Extract GPS co-ordinates
+    lat = gps.location.lat();
+    lng = gps.location.lng();
+
+    Serial.print(F("Location: ")); 
+    Serial.print(lat, 5);                                       // Print Latitude.      
+    Serial.print(F(","));
+    Serial.println(lng, 5);                                       // Print Longitude. 
+    latOffset = user_defined_Lat - lat;
+    lngOffset = user_defined_Lang - lng;
+    if( ((latOffset <= user_defined_radius) && (latOffset >= (user_defined_radius * -1))) && ((lngOffset <= user_defined_radius) && (lngOffset >= (user_defined_radius * -1))) )
+    {
+      Serial.println("Perimeter accessed");  // User has entered in the predefined area.
+      Access="Perimeter accessed";
+    }
+    else
+    {
+      Serial.println("No breach"); // User is outside the predefined area.
+      Access="No breach";
+    }
+  }
+  static bool flag = false;
+  if (!flag){
+    client = new HTTPSRedirect(httpsPort);
+    client->setInsecure();
+    flag = true;
+    client->setPrintResponseBody(true);
+    client->setContentTypeHeader("application/json");
+  }
+  if (client != nullptr){
+    if (!client->connected()){
+      client->connect(host, httpsPort);
+    }
+  }
+  else{
+    Serial.println("Error creating client object!");
+  }
+    // Create json object string to send to Google Sheets
+  payload = payload_base + "\"" + Latitude + "," + Longitude + "," + Access + "\"}";
+  
+  // Publish data to Google Sheets
+  Serial.println("Publishing data...");
+  Serial.println(payload);
+  if(client->POST(url, host, payload)){ 
+    // do stuff here if publish was successful
+  }
+  else{
+    // do stuff here if publish was not successful
+    Serial.println("Error while connecting");
+  }
+}
+
+void loop()
+{
+  publish();
+  delay(3000);
+  // listen for incoming clients
+    WiFiClient client = server.available();
+    if(client) {                             
+    Serial.println("new client");          
+    String currentLine = "";                // make a String to hold incoming data from the client
+    while (client.connected()) {            
+      if (client.available()) {             // if there's client data
+        char c = client.read();          // read a byte
+          if (c == '\n') {                      // check for newline character,
+          if (currentLine.length() == 0) {  // if line is blank it means its the end of the client HTTP request
+      
+    //--------------------------------------------------------------------------------------------------------
+    html="<!DOCTYPE html>";
+    html+="<html lang='en'>";
+    html+="<head>";
+    html+="<meta charset='UTF-8'>";
+    html+="<meta name='viewport' content='width=device-width, initial-scale=1.0'>";
+    html+="<meta http-equiv='X-UA-Compatible' content='ie=edge'>";
+    html+="<title>My Google Map</title>";
+    html+="<style>#map{height:400px;width:100%;}</style>";
+    html+="</head>";
+    html+="<body>";
+    html+="<h1>My Google Map</h1>";
+    html+="<div id='map'></div>";
+    html+="<script>";
+    //---------------------------------------------------------------------------------------------------------
+    
+    html+="var map;";
+    html+="var marker;";
+    
+    //5000ms means 5000/1000 = 5 Seconds
+    //20000ms means 20000/1000 = 20 Seconds
+    html+="var INTERVAL = 5000;";
+    
+    //---------------------------------------------------------------------------------------------------------
+    html+="function initMap(){";
+      //------------------------------------------
+      html+="var options = {";
+          html+="zoom:16,";
+          html+="center:{lat:"+Latitude+",lng:"+Longitude+"},";
+          html+="mapTypeId: google.maps.MapTypeId.ROADMAP,";
+      html+="};";
+      //------------------------------------------
+      html+="map = new google.maps.Map(document.getElementById('map'), options);";
+    html+="}";
+    //---------------------------------------------------------------------------------
+    
+    //---------------------------------------------------------------------------------
+    html+="function getMarkers() {";
+      //html+="console.log("+latitude+");";
+      //html+="console.log("+longitude+");";
+      
+      html+="var newLatLng = new google.maps.LatLng("+Latitude+", "+Longitude+");";
+      //----------------------------------------
+      html+="marker = new google.maps.Marker({";
+        html+="position: newLatLng,";
+        html+="map: map";
+      html+="});";
+      //----------------------------------------
+    html+="}";
+    //--------------------------------------------------------------------------------
+
+    //--------------------------------------------------------------------------------
+    html+="window.setInterval(getMarkers,INTERVAL);";
+    
+    html+="</script>";
+    html+="<script async defer src='https://maps.googleapis.com/maps/api/js?key="+GMAP_API_KEY+"&callback=initMap'>";
+    html+="</script>";
+    html+="</body></html>";
+    //---------------------------------------------------------------------------------
+  client.print(html);
+            // The HTTP response ends with another blank line:
+            client.println();
+            // break out of the while loop:
+            break;
+          } else {   currentLine = ""; }
+        } else if (c != '\r') {  // if you got anything else but a carriage return character,
+          currentLine += c; // add it to the end of the currentLine
+        }
+         // here you can check for any keypresses if your web server page has any
+      }
+    }
+    // close the connection:
+    client.stop();
+    Serial.println("client disconnected");
+    }    
+  }
+static void gps_module(unsigned long ms)
+{
+  unsigned long start = millis();
+  do 
+  {
+    while (neo6m.available())
+      gps.encode(neo6m.read());
+  } while (millis() - start < ms);
+}
